@@ -32,7 +32,9 @@ namespace SDT
 	static constexpr std::uint32_t F_SHOW_FRAMETIME_SIMPLE = 1U << 4;
 	static constexpr std::uint32_t F_SHOW_COUNTER          = 1U << 5;
 	static constexpr std::uint32_t F_SHOW_VRAM_USAGE       = 1U << 6;
-	static constexpr std::uint32_t F_SHOW_ALL              = (F_SHOW_FPS | F_SHOW_FRAMETIME | F_SHOW_COUNTER | F_SHOW_VRAM_USAGE);
+	static constexpr std::uint32_t F_SHOW_AVGFPS           = 1U << 7;
+	static constexpr std::uint32_t F_SHOW_AVGFPS_SIMPLE    = 1U << 8;
+	static constexpr std::uint32_t F_SHOW_ALL              = (F_SHOW_FPS | F_SHOW_FRAMETIME | F_SHOW_COUNTER | F_SHOW_VRAM_USAGE | F_SHOW_AVGFPS);
 
 	using namespace DirectX;
 
@@ -45,6 +47,8 @@ namespace SDT
 		{ "bare_frametime", F_SHOW_FRAMETIME_SIMPLE },
 		{ "counter", F_SHOW_COUNTER },
 		{ "vram", F_SHOW_VRAM_USAGE },
+		{ "avgfps", F_SHOW_AVGFPS },
+		{ "bare_avgfps", F_SHOW_AVGFPS_SIMPLE },
 		{ "all", F_SHOW_ALL }
 	};
 
@@ -54,7 +58,12 @@ namespace SDT
 		m_bufStats2[0] = 0x0;
 		m_bufStats3[0] = 0x0;
 		m_bufStats4[0] = 0x0;
+		m_bufStats5[0] = 0x0;
 
+		m_stats.avgStart       = 0;
+		m_stats.avgStartFrame  = 0;
+		m_stats.avgReset       = true;
+		m_stats.cur.avgfps     = 0.0L;
 		m_stats.lastUpdate     = IPerfCounter::Query();
 		m_stats.frameCounter   = 0;
 		m_stats.lastFrameCount = 0;
@@ -493,8 +502,9 @@ finish:
 	{
 		if (!m_Instance.m_stats.draw)
 		{
-			m_Instance.m_stats.warmup = 2;
-			m_Instance.m_stats.draw   = true;
+			m_Instance.m_stats.warmup   = 2;
+			m_Instance.m_stats.avgReset = true;
+			m_Instance.m_stats.draw     = true;
 		}
 		else
 		{
@@ -552,6 +562,20 @@ finish:
 		return m_Instance.m_bufStats4;
 	}
 
+	const wchar_t* DOSD::StatsRendererCallback_AvgFPS()
+	{
+		::_snwprintf_s(m_Instance.m_bufStats5, _TRUNCATE, L"Avg FPS: %.1Lf", m_Instance.m_stats.cur.avgfps);
+
+		return m_Instance.m_bufStats5;
+	}
+
+	const wchar_t* DOSD::StatsRendererCallback_SimpleAvgFPS()
+	{
+		::_snwprintf_s(m_Instance.m_bufStats5, _TRUNCATE, L"%.1Lf", m_Instance.m_stats.cur.avgfps);
+
+		return m_Instance.m_bufStats5;
+	}
+
 	void DOSD::Present_Pre(IDXGISwapChain*)
 	{
 		if (!m_Instance.m_statsRenderer.get())
@@ -581,6 +605,14 @@ finish:
 		auto e      = IPerfCounter::Query();
 		auto deltaT = IPerfCounter::delta_us(m_Instance.m_stats.lastUpdate, e);
 
+		if (m_Instance.m_stats.avgReset)
+		{
+			m_Instance.m_stats.avgStart      = e;
+			m_Instance.m_stats.avgStartFrame = m_Instance.m_stats.frameCounter;
+			m_Instance.m_stats.cur.avgfps    = 0.0L;
+			m_Instance.m_stats.avgReset      = false;
+		}
+
 		if (m_Instance.m_stats.warmup || deltaT >= m_Instance.m_stats.interval)
 		{
 			auto deltaFC =
@@ -589,6 +621,14 @@ finish:
 
 			m_Instance.m_stats.cur.frametime =
 				static_cast<long double>(deltaT) / static_cast<long double>(deltaFC);
+
+			auto avgElapsed = IPerfCounter::delta_us(m_Instance.m_stats.avgStart, e);
+			auto avgFrames  = m_Instance.m_stats.frameCounter - m_Instance.m_stats.avgStartFrame;
+			if (avgElapsed > 0 && avgFrames > 0)
+			{
+				m_Instance.m_stats.cur.avgfps =
+					static_cast<long double>(avgFrames) * 1000000.0L / static_cast<long double>(avgElapsed);
+			}
 
 			m_Instance.m_stats.lastFrameCount =
 				m_Instance.m_stats.frameCounter;
@@ -679,6 +719,15 @@ finish:
 				else if (m_stats.flags & F_SHOW_FPS)
 				{
 					renderer->AddCallback(StatsRendererCallback_FPS);
+				}
+
+				if (m_stats.flags & F_SHOW_AVGFPS_SIMPLE)
+				{
+					renderer->AddCallback(StatsRendererCallback_SimpleAvgFPS);
+				}
+				else if (m_stats.flags & F_SHOW_AVGFPS)
+				{
+					renderer->AddCallback(StatsRendererCallback_AvgFPS);
 				}
 
 				if (m_stats.flags & F_SHOW_FRAMETIME_SIMPLE)

@@ -179,6 +179,8 @@ namespace SDT
 		static const wchar_t* StatsRendererCallback_SimpleFrametime();
 		static const wchar_t* StatsRendererCallback_Counter();
 		static const wchar_t* StatsRendererCallback_VRAM();
+		static const wchar_t* StatsRendererCallback_AvgFPS();
+		static const wchar_t* StatsRendererCallback_SimpleAvgFPS();
 
 		void Initialize(D3D11CreateEventPost* a_data);
 
@@ -218,7 +220,11 @@ namespace SDT
 			struct
 			{
 				long double frametime;
+				long double avgfps;
 			} cur;
+			long long     avgStart;
+			uint64_t      avgStartFrame;
+			volatile bool avgReset;
 		} m_stats;
 
 		KeyPressHandler m_inputEventHandler;
@@ -227,6 +233,7 @@ namespace SDT
 		wchar_t m_bufStats2[64];
 		wchar_t m_bufStats3[64];
 		wchar_t m_bufStats4[64];
+		wchar_t m_bufStats5[64];
 
 		std::unique_ptr<StatsRenderer> m_statsRenderer;
 
