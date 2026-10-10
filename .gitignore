@@ -358,16 +358,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
-/SSETweaks/SSEDisplayTweaks.ini
-/x64_v141/common_1_5_97_vc14/PreRelease
-/x64_v141/common_1_5_97_vc14/ReleaseAVX2
-/x64_v141/ReleaseAVX2
-/x64_v141/common_1_5_97_vc14/ReleaseAVX2 MT
-/x64_v142/common_1_5_97_vc14/ReleaseAVX2
-/x64_v142/common_1_5_97_vc14/Release MT
-/x64_v142/common_1_5_97_vc14/PreRelease MT
-/x64_v142/common_1_5_97_vc14/ReleaseAVX2 MT
-/x64_v143/common_1_5_97_vc14/Release MT/common_1_5_97_vc14.lib
 
 # local toolset build outputs
 /x64_v*/
