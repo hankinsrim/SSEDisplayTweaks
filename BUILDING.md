@@ -1,12 +1,14 @@
 # Building SSEDisplayTweaks
 
-State as of the 0.5.17 / Skyrim SE 1.7.99 port (2026-08). Upstream's original
+State as of the 0.5.17 / Skyrim SE 1.7.99 port (2026-08), still accurate for
+0.5.26 (2026-10; OSD-only changes, no build changes). Upstream's original
 build environment (SlavicPotato's `sse-build-resources` repo + vcpkg) is gone;
 this documents the reconstructed, locally maintained setup.
 
 ## Directory layout
 
-The solution expects these siblings next to the repo:
+The solution expects these siblings next to the repo (the root folder can be
+anywhere, `I:\source\` is just an example):
 
 ```
 I:\source\
@@ -62,11 +64,11 @@ Output: `x64\SSEDisplayTweaks\Release MD\SSEDisplayTweaks.dll`.
 
 ## Runtime support
 
-| Runtime            | Mechanism                                            |
-| ------------------ | ---------------------------------------------------- |
-| 1.5.23 – 1.5.97    | SE address library (`version-*.bin`, format 1)       |
-| 1.6.317 – 1.6.1179 | AE address library (`versionlib-*.bin`, format 2)    |
-| 1.7.99             | new flat-table database (`versionlib-*.bin`, format 5) |
+| Runtime            | Mechanism                                              |
+| ------------------ | ------------------------------------------------------ |
+| 1.5.23 – 1.5.97    | SE address library (`version-*.bin`, format 1)         |
+| 1.6.317 – 1.6.1179 | AE address library (`versionlib-*.bin`, format 2)      |
+| 1.7.99 – 1.7.104   | new flat-table database (`versionlib-*.bin`, format 5) |
 
 AE-side patch offsets are version-tiered in code (`VER_1_6_342` / `_629` /
 `_1130` / `VER_1_7` gates in `data.h` and the drivers). The 1.6.1130 tier was
