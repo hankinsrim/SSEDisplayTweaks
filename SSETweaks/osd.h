@@ -35,6 +35,8 @@ namespace SDT
 		bool Load(int resource);
 		bool Load(const wchar_t* filename);
 
+		bool SetBackground(const DirectX::XMVECTORF32& a_color, float a_padding);
+
 		SKMP_FORCEINLINE bool IsLoaded() const { return m_isLoaded; }
 
 		SKMP_FORCEINLINE void AddCallback(Callback cb)
@@ -73,6 +75,7 @@ namespace SDT
 		void UpdateStrings();
 		void AdjustPosition();
 		void AdjustOutline();
+		void AdjustBackground();
 
 	private:
 		std::unique_ptr<DirectX::CommonStates> m_commonStates;
@@ -97,6 +100,13 @@ namespace SDT
 		ID3D11DeviceContext* m_pDeviceContext;
 
 		ID3D11BlendState* m_blendState;
+
+		Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_bgTexture;
+		DirectX::XMVECTORF32                             m_bgColor;
+		RECT                                             m_bgRect{};
+		float                                            m_bgPadding{ 0.0f };
+		float                                            m_bgMaxWidth{ 0.0f };
+		bool                                             m_bgVisible{ false };
 
 		D3D11StateBackupImpl m_backup;
 	};
@@ -145,6 +155,9 @@ namespace SDT
 			std::string          offset;
 			std::string          items;
 			float                outline_size;
+			bool                 background;
+			std::string          background_color;
+			float                background_padding;
 			std::uint32_t        combo_key;
 			std::uint32_t        key;
 			StatsRenderer::Align align;
@@ -214,6 +227,7 @@ namespace SDT
 			{
 				DirectX::XMVECTORF32 font;
 				DirectX::XMVECTORF32 outline;
+				DirectX::XMVECTORF32 background;
 			} colors;
 			DirectX::XMFLOAT2A scale;
 			DirectX::XMFLOAT2A offset;

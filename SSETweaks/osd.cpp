@@ -15,6 +15,9 @@ namespace SDT
 	static constexpr const char* CKEY_STATSFONTCOLOR        = "Color";
 	static constexpr const char* CKEY_STATSFONTOUTLINECOLOR = "OutlineColor";
 	static constexpr const char* CKEY_STATSOUTLINESIZE      = "OutlineOffset";
+	static constexpr const char* CKEY_STATSBACKGROUND       = "Background";
+	static constexpr const char* CKEY_STATSBACKGROUNDCOLOR  = "BackgroundColor";
+	static constexpr const char* CKEY_STATSBACKGROUNDPAD    = "BackgroundPadding";
 	static constexpr const char* CKEY_STATSKEY              = "ToggleKey";
 	static constexpr const char* CKEY_STATSALIGN            = "Align";
 	static constexpr const char* CKEY_STATSOFFSET           = "Offset";
@@ -80,6 +83,9 @@ namespace SDT
 		m_conf.font_color         = GetConfigValue(CKEY_STATSFONTCOLOR, "255 255 255");
 		m_conf.font_outline_color = GetConfigValue(CKEY_STATSFONTOUTLINECOLOR, "0 0 0");
 		m_conf.outline_size       = GetConfigValue(CKEY_STATSOUTLINESIZE, 1.0f);
+		m_conf.background         = GetConfigValue(CKEY_STATSBACKGROUND, true);
+		m_conf.background_color   = GetConfigValue(CKEY_STATSBACKGROUNDCOLOR, "64 64 64 96");
+		m_conf.background_padding = std::clamp(GetConfigValue(CKEY_STATSBACKGROUNDPAD, 4.0f), 0.0f, 64.0f);
 		m_conf.combo_key          = ConfigGetComboKey(GetConfigValue<std::int32_t>(CKEY_COMBOKEY, 1));
 		m_conf.key                = GetConfigValue<std::uint32_t>(CKEY_STATSKEY, DIK_INSERT);
 		m_conf.align              = ConfigGetStatsRendererAlignment(GetConfigValue(CKEY_STATSALIGN, 1));
@@ -119,6 +125,7 @@ namespace SDT
 			ConfigGetFlags(m_conf.items, m_stats.flags);
 			ConfigParseColors(m_conf.font_color, m_stats.colors.font);
 			ConfigParseColors(m_conf.font_outline_color, m_stats.colors.outline);
+			ConfigParseColors(m_conf.background_color, m_stats.colors.background);
 			ConfigParseScale(m_conf.font_scale, m_stats.scale);
 			ConfigParseVector2(m_conf.offset, m_stats.offset);
 
@@ -387,6 +394,41 @@ finish:
 		return (m_isLoaded = true);
 	}
 
+	bool StatsRenderer::SetBackground(const XMVECTORF32& a_color, float a_padding)
+	{
+		static const std::uint32_t pixel = 0xFFFFFFFF;
+
+		D3D11_TEXTURE2D_DESC desc{};
+		desc.Width            = 1;
+		desc.Height           = 1;
+		desc.MipLevels        = 1;
+		desc.ArraySize        = 1;
+		desc.Format           = DXGI_FORMAT_R8G8B8A8_UNORM;
+		desc.SampleDesc.Count = 1;
+		desc.Usage            = D3D11_USAGE_IMMUTABLE;
+		desc.BindFlags        = D3D11_BIND_SHADER_RESOURCE;
+
+		D3D11_SUBRESOURCE_DATA data{};
+		data.pSysMem     = std::addressof(pixel);
+		data.SysMemPitch = sizeof(pixel);
+
+		Microsoft::WRL::ComPtr<ID3D11Texture2D> texture;
+		if (FAILED(m_pDevice->CreateTexture2D(std::addressof(desc), std::addressof(data), texture.GetAddressOf())))
+		{
+			return false;
+		}
+
+		if (FAILED(m_pDevice->CreateShaderResourceView(texture.Get(), nullptr, m_bgTexture.ReleaseAndGetAddressOf())))
+		{
+			return false;
+		}
+
+		m_bgColor   = a_color;
+		m_bgPadding = a_padding;
+
+		return true;
+	}
+
 	void StatsRenderer::DrawStrings()
 	{
 		if (!m_isLoaded)
@@ -402,6 +444,10 @@ finish:
 			auto sb   = m_spriteBatch.get();
 
 			m_spriteBatch->Begin(SpriteSortMode_Deferred, m_blendState);
+			if (m_bgVisible)
+			{
+				m_spriteBatch->Draw(m_bgTexture.Get(), m_bgRect, m_bgColor);
+			}
 			m_font->DrawString(sb, text, m_outlinePos[0], m_outlineColor, 0.0f, m_origin, m_scale);
 			m_font->DrawString(sb, text, m_outlinePos[1], m_outlineColor, 0.0f, m_origin, m_scale);
 			m_font->DrawString(sb, text, m_outlinePos[2], m_outlineColor, 0.0f, m_origin, m_scale);
@@ -425,6 +471,7 @@ finish:
 		{
 			UpdateStrings();
 			AdjustPosition();
+			AdjustBackground();
 		}
 		catch (const std::exception&)
 		{
@@ -496,6 +543,29 @@ finish:
 		m_outlinePos[2]             = _mm_sub_ps(m_pos, m_outlineSize);
 		m_outlinePos[3].m128_f32[0] = m_pos.m128_f32[0] + m_outlineSize.m128_f32[0];
 		m_outlinePos[3].m128_f32[1] = m_pos.m128_f32[1] - m_outlineSize.m128_f32[1];
+	}
+
+	void StatsRenderer::AdjustBackground()
+	{
+		if (!m_bgTexture || m_drawString.empty())
+		{
+			m_bgVisible = false;
+			return;
+		}
+
+		auto size = m_font->MeasureString(m_drawString.c_str(), false);
+
+		// only ever grow horizontally so the box doesn't jitter as values change
+		m_bgMaxWidth = std::max(m_bgMaxWidth, size.m128_f32[0] * m_scale.m128_f32[0]);
+
+		auto height = size.m128_f32[1] * m_scale.m128_f32[1];
+
+		m_bgRect.left   = static_cast<LONG>(std::floor(m_pos.m128_f32[0] - m_bgPadding));
+		m_bgRect.top    = static_cast<LONG>(std::floor(m_pos.m128_f32[1] - m_bgPadding));
+		m_bgRect.right  = static_cast<LONG>(std::ceil(m_pos.m128_f32[0] + m_bgMaxWidth + m_bgPadding));
+		m_bgRect.bottom = static_cast<LONG>(std::ceil(m_pos.m128_f32[1] + height + m_bgPadding));
+
+		m_bgVisible = true;
 	}
 
 	void DOSD::KeyPressHandler::OnKeyPressed()
@@ -712,6 +782,14 @@ finish:
 
 			if (res)
 			{
+				if (m_conf.background)
+				{
+					if (!renderer->SetBackground(m_stats.colors.background, m_conf.background_padding))
+					{
+						Warning("Couldn't create OSD background, continuing without it");
+					}
+				}
+
 				if (m_stats.flags & F_SHOW_FPS_SIMPLE)
 				{
 					renderer->AddCallback(StatsRendererCallback_SimpleFPS);
